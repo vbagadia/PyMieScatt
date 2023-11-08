@@ -545,3 +545,164 @@ def Mie_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_met
       return dict(Bext=Bext, Bsca=Bsca, Babs=Babs, bigG=bigG, Bpr=Bpr, Bback=Bback, Bratio=Bratio)
     else:
       return Bext, Bsca, Babs, bigG, Bpr, Bback, Bratio
+
+def SurfaceArea_SD(m, wavelength, dp, ndp,ndpi,integrate_method:str, nMedium=1.0,  SMPS=True, interpolate=False, asDict=False):
+  '''Returns Surface Area of particle for given Size Distribution in units of um2/cm3. Returns total Surface Area (SArea), Surface Area Distribution (dSD/ddp), and Surface Area Distribution per mode (dSD/ddpi). Choice of integration method'''
+#  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_SD
+  nMedium = nMedium.real
+  m /= nMedium
+  wavelength /= nMedium
+  dp = coerceDType(dp)
+  ndp = coerceDType(ndp)
+  _length = np.size(dp)
+  
+  # scaling of 1e-6 to cast in units of um2/cm3.
+  aSDn = 4*np.pi*((dp/2)**2)*ndp*(1e-6)
+  # ith_SD = lambda ndpi, dp : 4*np.pi*((dp/2)**2)*ndpi*(1E-6)
+  SDdp = aSDn
+  SDdpi = []
+  for mode in ndpi:
+    aSDni = 4*np.pi*((dp/2)**2)*mode*(1e-6)
+    SDdpi.append(aSDni)
+#  _logdp = np.log10(dp)
+  if SMPS:
+    SArea = np.sum(aSDn)
+  elif integrate_method=='trapz':
+    SArea = trapz(aSDn,dp)
+  elif integrate_method=='simpson':
+    SArea = simpson(aSDn,dp)
+
+  if asDict:
+    return dict(SArea=SArea,SDdp=SDdp,SDdpi=SDdpi)
+  else:
+    return SArea,SDdp,SDdpi
+  
+def SurfaceArea_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_method:str,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
+  '''Returns Surface Area and Surface Area Size Distribution Parameters, and input distribution particle size and number if specified. Returns surface area in units of um2/cm3.'''
+#  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_Lognormal
+  nMedium = nMedium.real
+  m /= nMedium
+  wavelength /= nMedium
+  ithPart = lambda gammai, dp, dpgi, sigmagi: (gammai/(np.sqrt(2*np.pi)*np.log(sigmagi)*dp))*np.exp(-(np.log(dp)-np.log(dpgi))**2/(2*np.log(sigmagi)**2))
+  dp = np.logspace(np.log10(lower),np.log10(upper),numberOfBins)
+  if all([type(x) in [list, tuple, np.ndarray] for x in [geoStdDev, geoMean]]):
+    # multimodal
+    if len(gamma)==1 and (len(geoStdDev)==len(geoMean)>1):
+      # gamma is distributed equally among modes
+      gamma = [1 for x in geoStdDev]
+      gamma = [float(x/np.sum(gamma)) for x in gamma]
+      ndpi = [numberOfParticles*ithPart(g,dp,dpg,sg) for g,dpg,sg in zip(gamma,geoMean,geoStdDev)]
+      ndp = np.sum(ndpi,axis=0)
+    elif len(gamma)==len(geoStdDev)==len(geoMean):
+      # gamma is fully specified for each mode
+      gamma = [float(x/np.sum(gamma)) for x in gamma]
+      ndpi = [numberOfParticles*ithPart(g,dp,dpg,sg) for g,dpg,sg in zip(gamma,geoMean,geoStdDev)]
+      ndp = np.sum(ndpi,axis=0)
+    else:
+      # user fucked up
+      warnings.warn("Not enough parameters to fully specify each mode.")
+      return None
+  else:
+    # unimodal
+    decomposeMultimodal = False
+    ndp = numberOfParticles*ithPart(1,dp,geoMean,geoStdDev)
+  if ndp[-1]>np.max(ndp)/100 or ndp[0]>np.max(ndp)/100:
+    warnings.warn("Warning: distribution may not be compact on the specified interval. Consider using a higher upper bound.")
+
+  SArea, SDdp, SDdpi = SurfaceArea_SD(m,wavelength,dp,ndp,ndpi,integrate_method,SMPS=False)
+  if returnDistribution:
+    if decomposeMultimodal:
+      if asDict==True:
+        return dict(SArea,SDdp,SDdpi), dp, ndp, ndpi
+      else:
+        return SArea,SDdp,SDdpi,dp,ndp,ndpi
+    else:
+      if asDict==True:
+        return dict(SArea,SDdp), dp, ndp
+      else:
+        return SArea,SDdp,dp,ndp
+  else:
+    if asDict==True:
+      return dict(SArea)
+    else:
+      return SArea
+    
+def Volume_SD(m, wavelength, dp, ndp, ndpi,integrate_method:str, nMedium=1.0,  SMPS=True, interpolate=False, asDict=False):
+  '''Returns Volume of particle for given Size Distribution in units of um3/cm3. Returns total Volume (V), Volume Distribution (dV/ddp), and Volume Distribution per mode (dV/ddpi). Choice of integration method'''
+#  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_SD
+  nMedium = nMedium.real
+  m /= nMedium
+  wavelength /= nMedium
+  dp = coerceDType(dp)
+  ndp = coerceDType(ndp)
+  _length = np.size(dp)
+  
+  # scaling of 1e-9 to cast in units of um3/cm3
+  aVn = (4/3)*np.pi*((dp/2)**3)*ndp*(1e-9)
+  dVdp = aVn
+  dVdpi = []
+  for mode in ndpi:
+    aVni = (4/3)*np.pi*((dp/2)**3)*mode*(1e-9)
+    dVdpi.append(aVni)
+#  _logdp = np.log10(dp)
+  if SMPS:
+    Volume = np.sum(aVn)
+  elif integrate_method=='trapz':
+    Volume = trapz(aVn,dp)
+  elif integrate_method=='simpson':
+    Volume = simpson(aVn,dp)
+
+  if asDict:
+    return dict(Volume=Volume,dVdp=dVdp,dVdpi=dVdpi)
+  else:
+    return Volume,dVdp,dVdpi
+  
+def Volume_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_method:str,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
+  '''Returns Volume and Volume Size Distribution parameters, and input distribution particle size and number if specified. Returns Volume in units of um3/cm3.'''
+#  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_Lognormal
+  nMedium = nMedium.real
+  m /= nMedium
+  wavelength /= nMedium
+  ithPart = lambda gammai, dp, dpgi, sigmagi: (gammai/(np.sqrt(2*np.pi)*np.log(sigmagi)*dp))*np.exp(-(np.log(dp)-np.log(dpgi))**2/(2*np.log(sigmagi)**2))
+  dp = np.logspace(np.log10(lower),np.log10(upper),numberOfBins)
+  if all([type(x) in [list, tuple, np.ndarray] for x in [geoStdDev, geoMean]]):
+    # multimodal
+    if len(gamma)==1 and (len(geoStdDev)==len(geoMean)>1):
+      # gamma is distributed equally among modes
+      gamma = [1 for x in geoStdDev]
+      gamma = [float(x/np.sum(gamma)) for x in gamma]
+      ndpi = [numberOfParticles*ithPart(g,dp,dpg,sg) for g,dpg,sg in zip(gamma,geoMean,geoStdDev)]
+      ndp = np.sum(ndpi,axis=0)
+    elif len(gamma)==len(geoStdDev)==len(geoMean):
+      # gamma is fully specified for each mode
+      gamma = [float(x/np.sum(gamma)) for x in gamma]
+      ndpi = [numberOfParticles*ithPart(g,dp,dpg,sg) for g,dpg,sg in zip(gamma,geoMean,geoStdDev)]
+      ndp = np.sum(ndpi,axis=0)
+    else:
+      # user fucked up
+      warnings.warn("Not enough parameters to fully specify each mode.")
+      return None
+  else:
+    # unimodal
+    decomposeMultimodal = False
+    ndp = numberOfParticles*ithPart(1,dp,geoMean,geoStdDev)
+  if ndp[-1]>np.max(ndp)/100 or ndp[0]>np.max(ndp)/100:
+    warnings.warn("Warning: distribution may not be compact on the specified interval. Consider using a higher upper bound.")
+
+  Volume,dVdp,dVdpi = Volume_SD(m,wavelength,dp,ndp,ndpi,integrate_method,SMPS=False)
+  if returnDistribution:
+    if decomposeMultimodal:
+      if asDict==True:
+        return dict(Volume=Volume,dVdp=dVdp,dVdpi=dVdpi), dp, ndp, ndpi
+      else:
+        return Volume, dVdp,dVdpi,dp,ndp,ndpi
+    else:
+      if asDict==True:
+        return dict(Volume=Volume,dVdp=dVdp), dp, ndp
+      else:
+        return Volume,dVdp,dp,ndp
+  else:
+    if asDict==True:
+      return dict(Volume)
+    else:
+      return Volume
