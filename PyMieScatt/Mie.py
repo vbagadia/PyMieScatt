@@ -546,7 +546,7 @@ def Mie_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_met
     else:
       return Bext, Bsca, Babs, bigG, Bpr, Bback, Bratio
 
-def SurfaceArea_SD(m, wavelength, dp, ndp,ndpi,integrate_method:str, nMedium=1.0,  SMPS=True, interpolate=False, asDict=False):
+def SurfaceArea_SD(m, wavelength, dp, ndp,integrate_method:str, nMedium=1.0, ndpi=False, SMPS=True, interpolate=False, asDict=False):
   '''Returns Surface Area of particle for given Size Distribution in units of um2/cm3. Returns total Surface Area (SArea), Surface Area Distribution (dSD/ddp), and Surface Area Distribution per mode (dSD/ddpi). Choice of integration method'''
 #  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_SD
   nMedium = nMedium.real
@@ -560,10 +560,11 @@ def SurfaceArea_SD(m, wavelength, dp, ndp,ndpi,integrate_method:str, nMedium=1.0
   aSDn = 4*np.pi*((dp/2)**2)*ndp*(1e-6)
   # ith_SD = lambda ndpi, dp : 4*np.pi*((dp/2)**2)*ndpi*(1E-6)
   SDdp = aSDn
-  SDdpi = []
-  for mode in ndpi:
-    aSDni = 4*np.pi*((dp/2)**2)*mode*(1e-6)
-    SDdpi.append(aSDni)
+  if ndpi:
+    SDdpi = []
+    for mode in ndpi:
+      aSDni = 4*np.pi*((dp/2)**2)*mode*(1e-6)
+      SDdpi.append(aSDni)
 #  _logdp = np.log10(dp)
   if SMPS:
     SArea = np.sum(aSDn)
@@ -572,10 +573,16 @@ def SurfaceArea_SD(m, wavelength, dp, ndp,ndpi,integrate_method:str, nMedium=1.0
   elif integrate_method=='simpson':
     SArea = simpson(aSDn,dp)
 
-  if asDict:
-    return dict(SArea=SArea,SDdp=SDdp,SDdpi=SDdpi)
+  if ndpi:
+    if asDict:
+      return dict(SArea=SArea,SDdp=SDdp,SDdpi=SDdpi)
+    else:
+      return SArea,SDdp,SDdpi
   else:
-    return SArea,SDdp,SDdpi
+    if asDict:
+      return dict(SArea=SArea,SDdp=SDdp)
+    else:
+      return SArea,SDdp
   
 def SurfaceArea_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_method:str,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
   '''Returns Surface Area and Surface Area Size Distribution Parameters, and input distribution particle size and number if specified. Returns surface area in units of um2/cm3.'''
@@ -609,7 +616,7 @@ def SurfaceArea_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integ
   if ndp[-1]>np.max(ndp)/100 or ndp[0]>np.max(ndp)/100:
     warnings.warn("Warning: distribution may not be compact on the specified interval. Consider using a higher upper bound.")
 
-  SArea, SDdp, SDdpi = SurfaceArea_SD(m,wavelength,dp,ndp,ndpi,integrate_method,SMPS=False)
+  SArea, SDdp, SDdpi = SurfaceArea_SD(m,wavelength,dp,ndp,integrate_method,ndpi=ndpi,SMPS=False)
   if returnDistribution:
     if decomposeMultimodal:
       if asDict==True:
@@ -627,7 +634,7 @@ def SurfaceArea_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integ
     else:
       return SArea
     
-def Volume_SD(m, wavelength, dp, ndp, ndpi,integrate_method:str, nMedium=1.0,  SMPS=True, interpolate=False, asDict=False):
+def Volume_SD(m, wavelength, dp, ndp,integrate_method:str, nMedium=1.0,  ndpi=False,SMPS=True, interpolate=False, asDict=False):
   '''Returns Volume of particle for given Size Distribution in units of um3/cm3. Returns total Volume (V), Volume Distribution (dV/ddp), and Volume Distribution per mode (dV/ddpi). Choice of integration method'''
 #  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_SD
   nMedium = nMedium.real
@@ -640,10 +647,11 @@ def Volume_SD(m, wavelength, dp, ndp, ndpi,integrate_method:str, nMedium=1.0,  S
   # scaling of 1e-9 to cast in units of um3/cm3
   aVn = (4/3)*np.pi*((dp/2)**3)*ndp*(1e-9)
   dVdp = aVn
-  dVdpi = []
-  for mode in ndpi:
-    aVni = (4/3)*np.pi*((dp/2)**3)*mode*(1e-9)
-    dVdpi.append(aVni)
+  if ndpi:
+    dVdpi = []
+    for mode in ndpi:
+      aVni = (4/3)*np.pi*((dp/2)**3)*mode*(1e-9)
+      dVdpi.append(aVni)
 #  _logdp = np.log10(dp)
   if SMPS:
     Volume = np.sum(aVn)
@@ -652,10 +660,16 @@ def Volume_SD(m, wavelength, dp, ndp, ndpi,integrate_method:str, nMedium=1.0,  S
   elif integrate_method=='simpson':
     Volume = simpson(aVn,dp)
 
-  if asDict:
-    return dict(Volume=Volume,dVdp=dVdp,dVdpi=dVdpi)
+  if ndpi:
+    if asDict:
+      return dict(Volume=Volume,dVdp=dVdp,dVdpi=dVdpi)
+    else:
+      return Volume,dVdp,dVdpi
   else:
-    return Volume,dVdp,dVdpi
+    if asDict:
+      return dict(Volume=Volume,dVdp=dVdp)
+    else:
+      return Volume,dVdp
   
 def Volume_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_method:str,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
   '''Returns Volume and Volume Size Distribution parameters, and input distribution particle size and number if specified. Returns Volume in units of um3/cm3.'''
@@ -689,7 +703,7 @@ def Volume_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_
   if ndp[-1]>np.max(ndp)/100 or ndp[0]>np.max(ndp)/100:
     warnings.warn("Warning: distribution may not be compact on the specified interval. Consider using a higher upper bound.")
 
-  Volume,dVdp,dVdpi = Volume_SD(m,wavelength,dp,ndp,ndpi,integrate_method,SMPS=False)
+  Volume,dVdp,dVdpi = Volume_SD(m,wavelength,dp,ndp,integrate_method,ndpi=ndpi,SMPS=False)
   if returnDistribution:
     if decomposeMultimodal:
       if asDict==True:
