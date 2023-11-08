@@ -3,6 +3,7 @@
 import numpy as np
 from scipy.special import jv, yv
 from scipy.integrate import trapz
+from scipy.integrate import simpson
 import warnings
 
 def coerceDType(d):
@@ -252,7 +253,7 @@ def AutoMie_ab(m,x):
   else:
     return Mie_ab(m,x)
 
-def Mie_SD(m, wavelength, dp, ndp, nMedium=1.0, SMPS=True, interpolate=False, asDict=False):
+def Mie_SD(m, wavelength, dp, ndp, integrate_method:str, nMedium=1.0,  SMPS=True, interpolate=False, asDict=False):
 #  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_SD
   nMedium = nMedium.real
   m /= nMedium
@@ -283,13 +284,21 @@ def Mie_SD(m, wavelength, dp, ndp, nMedium=1.0, SMPS=True, interpolate=False, as
     Bratio = np.sum(Q_ratio*aSDn)
     bigG = np.sum(g*Q_sca*aSDn)/np.sum(Q_sca*aSDn)
     Bpr = Bext - bigG*Bsca
-  else:
+  elif integrate_method=='trapz':
     Bext = trapz(Q_ext*aSDn,dp)
     Bsca = trapz(Q_sca*aSDn,dp)
     Babs = Bext-Bsca
     Bback = trapz(Q_back*aSDn,dp)
     Bratio = trapz(Q_ratio*aSDn,dp)
     bigG = trapz(g*Q_sca*aSDn,dp)/trapz(Q_sca*aSDn,dp)
+    Bpr = Bext - bigG*Bsca
+  elif integrate_method=='simpson':
+    Bext = simpson(Q_ext*aSDn,dp)
+    Bsca = simpson(Q_sca*aSDn,dp)
+    Babs = Bext-Bsca
+    Bback = simpson(Q_back*aSDn,dp)
+    Bratio = simpson(Q_ratio*aSDn,dp)
+    bigG = simpson(g*Q_sca*aSDn,dp)/simpson(Q_sca*aSDn,dp)
     Bpr = Bext - bigG*Bsca
 
   if asDict:
@@ -489,7 +498,7 @@ def MieQ_withSizeParameterRange(m, nMedium=1.0, xRange=(1,10), nx=1000, logX=Fal
   qratio = np.array([q[6] for q in _qD])
   return xValues, qext, qsca, qabs, g, qpr, qback, qratio
 
-def Mie_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
+def Mie_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,integrate_method:str,nMedium=1.0, numberOfBins=10000,lower=1,upper=1000,gamma=[1],returnDistribution=False,decomposeMultimodal=False,asDict=False):
 #  http://pymiescatt.readthedocs.io/en/latest/forward.html#Mie_Lognormal
   nMedium = nMedium.real
   m /= nMedium
@@ -519,7 +528,7 @@ def Mie_Lognormal(m,wavelength,geoStdDev,geoMean,numberOfParticles,nMedium=1.0, 
     ndp = numberOfParticles*ithPart(1,dp,geoMean,geoStdDev)
   if ndp[-1]>np.max(ndp)/100 or ndp[0]>np.max(ndp)/100:
     warnings.warn("Warning: distribution may not be compact on the specified interval. Consider using a higher upper bound.")
-  Bext, Bsca, Babs, bigG, Bpr, Bback, Bratio = Mie_SD(m,wavelength,dp,ndp,SMPS=False)
+  Bext, Bsca, Babs, bigG, Bpr, Bback, Bratio = Mie_SD(m,wavelength,dp,ndp,integrate_method,SMPS=False)
   if returnDistribution:
     if decomposeMultimodal:
       if asDict==True:
